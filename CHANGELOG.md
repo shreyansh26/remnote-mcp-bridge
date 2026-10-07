@@ -9,6 +9,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Local fork: personal GitHub fork metadata and sibling-checkout launch/reload instructions in the README.
+- Local fork: bounded concurrent export rendering and metadata-only retrieval with aliases, avoiding unused tag/card
+  retrieval during full-KB indexing.
+- Local fork: declare the separate read-only `KnowledgeBaseInfo` permission required by SDK KB identity calls in status
+  and export; the existing `All` bullet permission does not include knowledge-base metadata.
+- Local fork: `create_note.asFolder` uses the native SDK flag, supports subfolders, and automatically creates document
+  roots for titled notes under folders while preserving nested Markdown bullets inside documents.
+- Local fork: read-only `export_notes` pages all accessible Rem IDs without the keyword search cap, using KB-bound
+  cursors and existing snapshot infrastructure.
+- Local fork: actual `knowledgeBaseId` and `localFork: true` in status, `folder` classification, distinct local plugin
+  name/ID, paired server/CLI docs, and contract checks.
+
 - Add real RemNote alias writes to `create_note` and `update_note`, with whitespace normalization, exact additive and
   removal operations, idempotency, Unicode preservation, and protection against ambiguous or contradictory requests.
 

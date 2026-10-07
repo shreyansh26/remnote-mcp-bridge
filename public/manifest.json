@@ -1,18 +1,22 @@
 {
   "manifestVersion": 1,
-  "id": "remnote-mcp-bridge-p",
-  "name": "MCP/OpenClaw Automation Bridge",
+  "id": "shreyansh-remnote-mcp-bridge-local",
+  "name": "RemNote Local Bridge",
   "author": "Robert Spiegel",
-  "description": "Expose the RemNote API to MCP Server and OpenClaw CLI tool. Create, search, read, and update notes via your local bridge setup. See README for details.",
+  "description": "Local fork of Robert Spiegel's Automation Bridge with native folders and full knowledge-base export for local Ollama semantic search.",
   "version": {
     "major": 0,
     "minor": 18,
     "patch": 0
   },
-  "repoUrl": "https://github.com/robert7/remnote-mcp-bridge",
+  "repoUrl": "https://github.com/shreyansh26/remnote-mcp-bridge",
   "enableOnMobile": false,
   "requestNative": false,
   "requiredScopes": [
+    {
+      "type": "KnowledgeBaseInfo",
+      "level": "Read"
+    },
     {
       "type": "All",
       "level": "ReadCreateModifyDelete"

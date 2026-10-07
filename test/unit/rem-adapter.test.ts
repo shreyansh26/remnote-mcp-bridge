@@ -43,6 +43,46 @@ describe('RemAdapter', () => {
   });
 
   describe('createNote', () => {
+    it('creates native folders, subfolders, and document notes with nested bullets', async () => {
+      const folder = await adapter.createNote({ title: 'Learning', asFolder: true });
+      const nested = await adapter.createNote({
+        title: 'Systems',
+        asFolder: true,
+        parentId: folder.remIds[0],
+      });
+      const note = await adapter.createNote({
+        title: 'GPUs',
+        parentId: nested.remIds[0],
+        content: '- Memory\n  - Shared memory\n- Scheduling',
+      });
+      expect((await adapter.readNote({ remId: folder.remIds[0] })).remType).toBe('folder');
+      expect((await adapter.readNote({ remId: nested.remIds[0] })).parentRemId).toBe(
+        folder.remIds[0]
+      );
+      const read = await adapter.readNote({ remId: note.remIds[0], contentMode: 'structured' });
+      expect(read.remType).toBe('document');
+      expect(read.parentRemId).toBe(nested.remIds[0]);
+      expect(read.contentStructured?.[0].children?.[0].title).toBe('Shared memory');
+    });
+
+    it('rejects ambiguous folder payloads before creating Rems', async () => {
+      for (const params of [
+        { asFolder: true },
+        { title: ' ', asFolder: true },
+        { title: 'X', asFolder: true, content: '- bullet' },
+        { title: 'X', asFolder: true, asDocument: true },
+      ]) {
+        await expect(adapter.createNote(params)).rejects.toThrow('asFolder requires');
+      }
+      expect(plugin.rem.createSingleRemWithMarkdown).not.toHaveBeenCalled();
+      const folder = await adapter.createNote({ title: 'Folder', asFolder: true });
+      await expect(
+        adapter.createNote({ parentId: folder.remIds[0], content: '- bullet' })
+      ).rejects.toThrow('require a title');
+      await expect(adapter.createNote({ title: 'X', parentId: 'missing' })).rejects.toThrow(
+        'Parent not found'
+      );
+    });
     it('should reject create when write operations are disabled', async () => {
       adapter.updateSettings({ acceptWriteOperations: false });
 
@@ -3256,6 +3296,32 @@ describe('RemAdapter', () => {
   });
 
   describe('getStatus', () => {
+    it('exposes the actual KB identity and binds export cursors to it', async () => {
+      expect((await adapter.getStatus()).knowledgeBaseId).toBe('test-kb');
+      for (let i = 0; i < 1005; i++)
+        plugin.addTestRem(`export-${String(i).padStart(4, '0')}`, `Note ${i}`);
+      const internal = plugin.addTestRem('internal-slot', 'Metadata');
+      internal.setPowerupSlotMock(true);
+      let cursor: string | undefined;
+      const ids: string[] = [];
+      do {
+        const page = await adapter.exportNotes({ limit: 150, cursor });
+        expect(page.knowledgeBaseId).toBe('test-kb');
+        ids.push(...page.notes.map((note) => note.remId));
+        cursor = page.nextCursor;
+      } while (cursor);
+      expect(new Set(ids).size).toBe(1005);
+      expect(ids).not.toContain('internal-slot');
+      expect(plugin.rem.getAll).toHaveBeenCalledTimes(1);
+      const page = await adapter.exportNotes({ limit: 1 });
+      plugin.kb.getCurrentKnowledgeBaseData.mockResolvedValue({
+        _id: 'another-kb',
+        name: 'Another',
+      });
+      await expect(adapter.exportNotes({ cursor: page.nextCursor, limit: 1 })).rejects.toThrow(
+        'does not match'
+      );
+    });
     it('should return status information', async () => {
       adapter.updateSettings({ acceptWriteOperations: false, acceptReplaceOperation: true });
       const status = await adapter.getStatus();

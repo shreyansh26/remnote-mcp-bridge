@@ -309,6 +309,7 @@ class BridgeRuntimeController implements BridgeRuntime {
           parentId: payload.parentId as string | undefined,
           tagRemIds: payload.tagRemIds as string[] | undefined,
           asDocument: payload.asDocument as boolean | undefined,
+          asFolder: payload.asFolder as boolean | undefined,
           aliases: payload.aliases as string[] | undefined,
         });
         this.stats = { ...this.stats, created: this.stats.created + 1 };
@@ -346,6 +347,13 @@ class BridgeRuntimeController implements BridgeRuntime {
         this.addHistoryEntry('search', [`Search: "${payload.query}"`]);
         this.emit();
         return result;
+      }
+
+      case 'export_notes': {
+        return await this.adapter.exportNotes({
+          cursor: payload.cursor as string | undefined,
+          limit: payload.limit as number | undefined,
+        });
       }
 
       case 'get_media_locator': {

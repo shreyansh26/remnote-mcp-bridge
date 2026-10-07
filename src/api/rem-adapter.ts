@@ -32,6 +32,7 @@ export interface CreateNoteParams {
   parentId?: string;
   tagRemIds?: string[];
   asDocument?: boolean;
+  asFolder?: boolean;
   aliases?: string[];
 }
 
@@ -339,7 +340,7 @@ export interface SetDocumentStatusResult {
 }
 
 export type RemClassification =
-  'document' | 'dailyDocument' | 'concept' | 'descriptor' | 'portal' | 'text';
+  'folder' | 'document' | 'dailyDocument' | 'concept' | 'descriptor' | 'portal' | 'text';
 
 export type CardDirection = 'forward' | 'reverse' | 'bidirectional';
 export type SearchByTagContextReason =
@@ -382,6 +383,7 @@ const DEFAULT_SEARCH_CHILD_LIMIT = 20;
 
 /** Type priority for search result sorting (lower = higher priority). */
 const TYPE_PRIORITY: Record<RemClassification, number> = {
+  folder: 0,
   document: 0,
   concept: 0,
   dailyDocument: 1,
@@ -837,6 +839,7 @@ export class RemAdapter {
     rem: PluginRem,
     documentStatusOverride?: boolean
   ): Promise<RemClassification> {
+    if (typeof rem.isFolder === 'function' && (await rem.isFolder())) return 'folder';
     if (await rem.hasPowerup(BuiltInPowerupCodes.DailyDocument)) return 'dailyDocument';
     const isDocument = documentStatusOverride ?? (await rem.isDocument());
     if (isDocument) return 'document';
@@ -2383,6 +2386,7 @@ export class RemAdapter {
     }
 
     if (
+      value === 'folder' ||
       value === 'document' ||
       value === 'dailyDocument' ||
       value === 'concept' ||
@@ -2394,7 +2398,7 @@ export class RemAdapter {
     }
 
     throw new Error(
-      `${fieldName} must be one of document, dailyDocument, concept, descriptor, portal, text`
+      `${fieldName} must be one of folder, document, dailyDocument, concept, descriptor, portal, text`
     );
   }
 
@@ -2880,6 +2884,18 @@ export class RemAdapter {
       params.asDocument === undefined || params.asDocument === null
         ? false
         : this.requireBoolean(params.asDocument, 'asDocument');
+    const asFolder =
+      params.asFolder === undefined ? false : this.requireBoolean(params.asFolder, 'asFolder');
+    if (asFolder && (!title?.trim() || content !== undefined || asDocument)) {
+      throw new Error('asFolder requires a non-empty title, no content, and no asDocument');
+    }
+    const parent = parentId ? await this.plugin.rem.findOne(parentId) : undefined;
+    if (parentId && !parent) throw new Error(`Parent not found: ${parentId}`);
+    const parentIsFolder =
+      !!parent && typeof parent.isFolder === 'function' && (await parent.isFolder());
+    if (parentIsFolder && !title?.trim()) {
+      throw new Error('Notes inside folders require a title; put bullets in a child document');
+    }
     const aliases = this.parseAliases(params.aliases, 'aliases');
 
     const tagRemIds = [...this.optionalStringArray(params.tagRemIds, 'tagRemIds')];
@@ -2915,7 +2931,9 @@ export class RemAdapter {
       return await this.runInTransaction(async () => {
         const titleRem = await this.createSingleRemWithPreparedMarkdown(preparedTitle!, parentId);
 
-        if (asDocument) {
+        if (asFolder) {
+          await titleRem.setIsFolder(true);
+        } else if (asDocument || parentIsFolder) {
           await this.setRemDocumentStatus(titleRem, true);
         }
 
@@ -3080,6 +3098,72 @@ export class RemAdapter {
         };
 
     return this.renderSearchPage(snapshot, offset, limit, options, tagNameCache);
+  }
+
+  /** Read-only full-KB export for local indexing, independent of keyword-search limits. */
+  async exportNotes(params: { cursor?: string; limit?: number }): Promise<{
+    knowledgeBaseId: string;
+    notes: SearchResultItem[];
+    hasMore: boolean;
+    nextCursor?: string;
+    totalRems: number;
+  }> {
+    const { _id: knowledgeBaseId } = await this.plugin.kb.getCurrentKnowledgeBaseData();
+    if (!knowledgeBaseId) throw new Error('Cannot identify the current knowledge base');
+    const query = `\0export:${knowledgeBaseId}`;
+    const limit = this.getSearchLimit(params.limit);
+    let snapshot: SearchCursorSnapshot;
+    let offset = 0;
+    if (params.cursor) {
+      ({ snapshot, offset } = this.getSearchSnapshotFromCursor(query, params.cursor));
+    } else {
+      this.pruneExpiredSearchSnapshots();
+      // ponytail: SDK getAll loads IDs in memory; use SDK streaming when it becomes available.
+      const remIds = [...new Set((await this.plugin.rem.getAll()).map((rem) => rem._id))].sort();
+      const now = Date.now();
+      snapshot = {
+        id: this.createSearchSnapshotId(),
+        query,
+        queryHash: this.hashSearchQuery(query + '\0'),
+        remIds,
+        createdAt: now,
+        lastAccessedAt: now,
+        truncated: false,
+      };
+      this.searchCursorSnapshots.set(snapshot.id, snapshot);
+      this.enforceSearchSnapshotLimit();
+    }
+    const options = this.getSearchContentOptions({
+      contentMode: 'none',
+      view: 'compact',
+      depth: 0,
+    });
+    const notes: SearchResultItem[] = [];
+    const tagNameCache: TagNameCache = new Map();
+    const pageIds = snapshot.remIds.slice(offset, offset + limit);
+    for (let i = 0; i < pageIds.length; i += 10) {
+      // Bound concurrency so large exports do not flood the plugin SDK's message queue.
+      const batch = await Promise.all(
+        pageIds.slice(i, i + 10).map(async (remId) => {
+          const rem = await this.plugin.rem.findOne(remId);
+          if (!rem || (await this.isPowerupContentMetadataRem(rem))) return undefined;
+          const [{ _sourceIndex: _, ...note }, aliases] = await Promise.all([
+            this.buildSearchResultItem(rem, 0, options, tagNameCache),
+            this.getAliases(rem),
+          ]);
+          return { ...note, ...(aliases.length ? { aliases } : {}) };
+        })
+      );
+      notes.push(...batch.filter((note) => note !== undefined));
+    }
+    const nextCursor = this.createSearchCursor(snapshot, offset + limit);
+    return {
+      knowledgeBaseId,
+      notes,
+      hasMore: nextCursor !== undefined,
+      nextCursor,
+      totalRems: snapshot.remIds.length,
+    };
   }
 
   /**
@@ -3850,15 +3934,21 @@ export class RemAdapter {
    */
   async getStatus(): Promise<{
     connected: boolean;
+    localFork: boolean;
     pluginVersion: string;
     knowledgeBaseId?: string;
     acceptWriteOperations: boolean;
     acceptReplaceOperation: boolean;
   }> {
+    const knowledgeBase =
+      typeof this.plugin.kb?.getCurrentKnowledgeBaseData === 'function'
+        ? await this.plugin.kb.getCurrentKnowledgeBaseData()
+        : undefined;
     return {
       connected: true,
+      localFork: true,
       pluginVersion: __PLUGIN_VERSION__,
-      knowledgeBaseId: undefined,
+      knowledgeBaseId: knowledgeBase?._id,
       acceptWriteOperations: this.settings.acceptWriteOperations,
       acceptReplaceOperation: this.settings.acceptReplaceOperation,
     };

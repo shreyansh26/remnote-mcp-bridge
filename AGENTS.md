@@ -28,6 +28,7 @@ discontinued; maintained CLI code lives in `remnote-mcp-server/src/remnote-cli/`
 
 - `create_note` (simple note creation, optional root document status, hierarchical markdown import, markdown flashcards)
 - `search`
+- `export_notes` (internal read-only paged export for local semantic indexing)
 - `search_by_tag`
 - `read_note`
 - `get_media_locator` (capability-gated RemNote-managed image token resolution)
@@ -62,6 +63,7 @@ Before changing `search`/`read` output semantics, read:
 - `src/api/rem-adapter.ts` - action execution against RemNote SDK
 - `src/settings.ts` - plugin settings keys/defaults
 - `public/manifest.json` - plugin metadata/version
+- `docs/guides/local-fork-features.md` - native folders, actual KB identity, and the paired local export contract
 
 ## Development and Verification
 

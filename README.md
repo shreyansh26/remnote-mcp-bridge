@@ -1,5 +1,46 @@
 # RemNote Automation Bridge
 
+Personal fork of [Robert Spiegel's bridge](https://github.com/robert7/remnote-mcp-bridge), paired with
+[shreyansh26/remnote-mcp-server](https://github.com/shreyansh26/remnote-mcp-server). The plugin is named **RemNote Local
+Bridge**, with a distinct ID. It adds native folders/subfolders, document roots inside folders, the actual KB identity,
+and a paged full-KB export for local semantic indexing. Existing Markdown imports support nested bullets and LaTeX math.
+
+## Local fork setup
+
+Use sibling checkouts under `~/Projects/Remnote-MCP/`:
+
+```bash
+cd ~/Projects/Remnote-MCP/remnote-mcp-bridge
+npm ci
+npm run build
+```
+
+Start the built bridge asset server separately with:
+
+```bash
+node ~/Projects/Remnote-MCP/remnote-mcp-bridge/bin/remnote-mcp-bridge.js --port 8080
+```
+
+Or start both components with the companion server's launcher:
+
+```bash
+cd ~/Projects/Remnote-MCP
+bash remnote-mcp-server/scripts/start-local-forks.sh
+```
+
+In RemNote, disable the store bridge and load **RemNote Local Bridge** from `http://localhost:8080/` through **Settings
+→ Plugins → Build → Develop from localhost**. The plugin connects to `ws://127.0.0.1:3002`; enable write operations
+in its settings to create or edit notes. The required scopes are read-only `KnowledgeBaseInfo` and
+`All: ReadCreateModifyDelete`.
+
+Rebuild and reload the local plugin after bridge code changes. Moving the checkout or changing only the companion
+server does not require a plugin reload if these URLs stay the same. Semantic refresh and Ollama run in the companion
+server: it refreshes on startup/bridge connection and 15 minutes after each refresh by default, including manual edits.
+See the [server setup](https://github.com/shreyansh26/remnote-mcp-server#local-fork-setup) and
+[local bridge contract](docs/guides/local-fork-features.md).
+
+## Upstream documentation
+
 A RemNote plugin that exposes your RemNote knowledge base to external automation clients over a local WebSocket
 bridge. It is the shared RemNote endpoint for the `remnote-mcp-server` package:
 

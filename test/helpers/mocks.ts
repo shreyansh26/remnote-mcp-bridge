@@ -96,6 +96,7 @@ export class MockRem {
   private tags: string[] = [];
   private parent: MockRem | null = null;
   private _isDocument = false;
+  private _isFolder = false;
   private _powerups: string[] = [];
   private _practiceDirection: 'forward' | 'backward' | 'both' | 'none' = 'none';
   private _aliases: MockRem[] = [];
@@ -192,6 +193,12 @@ export class MockRem {
 
   async isDocument(): Promise<boolean> {
     return this._isDocument;
+  }
+  async isFolder(): Promise<boolean> {
+    return this._isFolder;
+  }
+  async setIsFolder(value: boolean): Promise<void> {
+    this._isFolder = value;
   }
 
   async setIsDocument(isDocument: boolean): Promise<void> {
@@ -341,6 +348,7 @@ export class MockRem {
  * Mock RemNote Plugin SDK
  */
 export class MockRemNotePlugin {
+  kb = { getCurrentKnowledgeBaseData: vi.fn(async () => ({ _id: 'test-kb', name: 'Test KB' })) };
   rootURL = 'https://example.test/plugin/';
   private rems = new Map<string, MockRem>();
   private remsByName = new Map<string, MockRem>();
@@ -351,6 +359,7 @@ export class MockRemNotePlugin {
   >();
 
   rem = {
+    getAll: vi.fn(async () => [...this.rems.values()]),
     createRem: vi.fn(async (): Promise<MockRem> => {
       const id = `rem_${this.nextId++}`;
       const rem = new MockRem(id, '');

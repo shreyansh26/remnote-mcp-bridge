@@ -100,13 +100,14 @@ contract keeps iterations safe and predictable.
 - `remType` is a primary agent-facing role, not a complete list of every RemNote trait. A Rem can be both a
   concept/card and a document.
 - Current values:
+  - `folder` (local fork)
   - `document`
   - `dailyDocument`
   - `concept`
   - `descriptor`
   - `portal`
   - `text`
-- Classification order is `dailyDocument`, then `document`, then `concept`, `descriptor`, `portal`, and `text`.
+- Classification order is `folder` (local fork), then `dailyDocument`, `document`, `concept`, `descriptor`, `portal`, and `text`.
   This means a concept/card that is also marked as a document is reported as `document`; card metadata remains exposed
   separately when available.
 - Results may be grouped/sorted by this classification for retrieval quality.
