@@ -6,7 +6,7 @@
   "description": "Local fork of Robert Spiegel's Automation Bridge with native folders and full knowledge-base export for local Ollama semantic search.",
   "version": {
     "major": 0,
-    "minor": 18,
+    "minor": 19,
     "patch": 0
   },
   "repoUrl": "https://github.com/shreyansh26/remnote-mcp-bridge",

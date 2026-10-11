@@ -2298,6 +2298,53 @@ describe('RemAdapter', () => {
   });
 
   describe('updateNote', () => {
+    it('sets and clears native heading sizes without rewriting text or children', async () => {
+      const rem = plugin.addTestRem('heading_note', 'Existing title');
+      rem.backText = ['Existing detail'];
+      const child = plugin.addTestRem('heading_child', 'Existing child');
+      await child.setParent(rem);
+      const setText = vi.spyOn(rem, 'setText');
+      const setFontSize = vi.spyOn(rem, 'setFontSize');
+
+      for (const headingSize of ['H1', 'H2', 'H3', 'normal'] as const) {
+        expect(await adapter.updateNote({ remId: rem._id, headingSize })).toEqual({
+          remIds: [rem._id],
+          titles: ['Existing title'],
+        });
+        expect(setFontSize).toHaveBeenLastCalledWith(
+          headingSize === 'normal' ? undefined : headingSize
+        );
+        expect((await adapter.readNote({ remId: rem._id, view: 'compact' })).headingSize).toBe(
+          headingSize
+        );
+      }
+      expect(setText).not.toHaveBeenCalled();
+      expect(rem.text).toEqual(['Existing title']);
+      expect(rem.backText).toEqual(['Existing detail']);
+      expect(await child.getParentRem()).toBe(rem);
+      await rem.setFontSize('H2');
+      await adapter.updateNote({ remId: rem._id, title: 'Renamed' });
+      expect(await rem.getFontSize()).toBe('H2');
+    });
+
+    it('rejects invalid heading sizes before any requested title change', async () => {
+      const rem = plugin.addTestRem('invalid_heading', 'Keep this title');
+      for (const headingSize of ['H4', '', 'h1', null, 2]) {
+        await expect(
+          adapter.updateNote({
+            remId: rem._id,
+            title: 'Do not write this',
+            headingSize,
+          } as unknown as Parameters<typeof adapter.updateNote>[0])
+        ).rejects.toThrow('headingSize must be H1, H2, H3, or normal');
+      }
+      expect(rem.text).toEqual(['Keep this title']);
+      adapter.updateSettings({ acceptWriteOperations: false });
+      await expect(adapter.updateNote({ remId: rem._id, headingSize: 'H1' })).rejects.toThrow(
+        'Write operations are disabled'
+      );
+    });
+
     it('should reject all updates when write operations are disabled', async () => {
       plugin.addTestRem('blocked_update_test', 'Original title');
       adapter.updateSettings({ acceptWriteOperations: false });
@@ -2447,7 +2494,7 @@ describe('RemAdapter', () => {
         adapter.updateNote({
           remId: 'update_missing_title_test',
         } as Parameters<typeof adapter.updateNote>[0])
-      ).rejects.toThrow('update_note requires title, addAliases, or removeAliases');
+      ).rejects.toThrow('update_note requires title, headingSize, addAliases, or removeAliases');
     });
   });
 

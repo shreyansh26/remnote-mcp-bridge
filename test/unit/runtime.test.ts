@@ -138,6 +138,7 @@ describe('Bridge runtime', () => {
           action: 'update_note',
           payload: {
             remId: createdRem!._id,
+            headingSize: 'H2',
             addAliases: ['Updated Alias'],
             removeAliases: ['Background Alias'],
           },
@@ -146,6 +147,7 @@ describe('Bridge runtime', () => {
     );
 
     expect((await updateResultPromise).ok).toBe(true);
+    expect(await createdRem!.getFontSize()).toBe('H2');
     expect((await createdRem!.getAliases()).map((alias) => alias.text)).toEqual([
       ['Updated Alias'],
     ]);

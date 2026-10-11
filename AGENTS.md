@@ -34,7 +34,7 @@ discontinued; maintained CLI code lives in `remnote-mcp-server/src/remnote-cli/`
 - `get_media_locator` (capability-gated RemNote-managed image token resolution)
 - `list_children`
 - `move_note`
-- `update_note`
+- `update_note` (title/aliases and native `headingSize`; paired 0.19.x)
 - `set_document_status`
 - `insert_children`
 - `replace_children`

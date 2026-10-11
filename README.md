@@ -4,6 +4,12 @@ Personal fork of [Robert Spiegel's bridge](https://github.com/robert7/remnote-mc
 [shreyansh26/remnote-mcp-server](https://github.com/shreyansh26/remnote-mcp-server). The plugin is named **RemNote Local
 Bridge**, with a distinct ID. It adds native folders/subfolders, document roots inside folders, the actual KB identity,
 and a paged full-KB export for local semantic indexing. Existing Markdown imports support nested bullets and LaTeX math.
+The paired 0.19.0 version adds `update_note.headingSize`: `H1`, `H2`, `H3`, or `normal`. It uses the SDK's
+[native heading setting](https://plugins.remnote.com/api/classes/Rem#setfontsize), preserves text and child Rems,
+and exposes the current root `headingSize` through `read_note`. Both bridge and server must use 0.19.x.
+
+Image operations currently retrieve existing images. Markdown writes pass image URL syntax to the SDK parser;
+this fork has no dedicated image insertion/local upload API and does not claim live-tested image import.
 
 ## Local fork setup
 

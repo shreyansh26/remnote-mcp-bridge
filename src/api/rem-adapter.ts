@@ -25,6 +25,7 @@ declare const __PLUGIN_VERSION__: string;
 export type ContentMode = 'none' | 'markdown' | 'structured';
 export type SearchByTagResultMode = 'context' | 'tagged';
 export type ResultView = 'compact' | 'standard' | 'full';
+export type HeadingSize = 'H1' | 'H2' | 'H3' | 'normal';
 
 export interface CreateNoteParams {
   title?: string;
@@ -114,6 +115,7 @@ export interface MediaLocatorResult extends Omit<RemMediaMetadata, 'source'> {
 export interface UpdateNoteParams {
   remId: string;
   title?: string;
+  headingSize?: HeadingSize;
   addAliases?: string[];
   removeAliases?: string[];
 }
@@ -3209,6 +3211,7 @@ export class RemAdapter {
     aliases?: string[];
     tags?: TagInfo[];
     remType: RemClassification;
+    headingSize: HeadingSize;
     cardDirection?: CardDirection;
     content?: string;
     contentStructured?: StructuredContentNode[];
@@ -3241,6 +3244,7 @@ export class RemAdapter {
       tags,
       parentContext,
       ancestorContext,
+      fontSize,
     ] = await Promise.all([
       this.getTitleAndDetail(rem),
       this.classifyRem(rem),
@@ -3251,6 +3255,7 @@ export class RemAdapter {
       view !== 'compact' ? this.getTags(rem, tagNameCache) : Promise.resolve([]),
       this.getParentContext(rem),
       this.getAncestors(rem, ancestorDepth),
+      rem.getFontSize(),
     ]);
 
     const headline = this.formatHeadline(title, detail, remType);
@@ -3297,6 +3302,7 @@ export class RemAdapter {
       ...(view !== 'compact' && aliases.length > 0 ? { aliases } : {}),
       ...(view !== 'compact' && tags.length > 0 ? { tags } : {}),
       remType,
+      headingSize: fontSize ?? 'normal',
       ...(view !== 'compact' && cardDirection ? { cardDirection } : {}),
       ...(content !== undefined ? { content } : {}),
       ...(contentStructured ? { contentStructured } : {}),
@@ -3486,10 +3492,19 @@ export class RemAdapter {
         : this.requireString(params.title, 'title');
     const addAliases = this.parseAliases(params.addAliases, 'addAliases');
     const removeAliases = this.parseAliases(params.removeAliases, 'removeAliases');
+    const headingSize = params.headingSize;
+    if (headingSize !== undefined && !['H1', 'H2', 'H3', 'normal'].includes(headingSize)) {
+      throw new Error('headingSize must be H1, H2, H3, or normal');
+    }
     this.rejectOverlappingAliasChanges(addAliases, removeAliases);
 
-    if (title === undefined && addAliases.length === 0 && removeAliases.length === 0) {
-      throw new Error('update_note requires title, addAliases, or removeAliases');
+    if (
+      title === undefined &&
+      headingSize === undefined &&
+      addAliases.length === 0 &&
+      removeAliases.length === 0
+    ) {
+      throw new Error('update_note requires title, headingSize, addAliases, or removeAliases');
     }
 
     const rem = await this.plugin.rem.findOne(remId);
@@ -3508,6 +3523,9 @@ export class RemAdapter {
     await this.runInTransaction(async () => {
       if (richText !== undefined) {
         await rem.setText(richText);
+      }
+      if (headingSize !== undefined) {
+        await rem.setFontSize(headingSize === 'normal' ? undefined : headingSize);
       }
       await this.updateAliasesOnRem(rem, addAliases, removeAliases, primaryTitle);
     });

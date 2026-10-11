@@ -1,7 +1,7 @@
 declare const __PLUGIN_VERSION__: string;
 
 import { FocusEvents, SidebarEvents, type ReactRNPlugin, WindowEvents } from '@remnote/plugin-sdk';
-import { RemAdapter } from '../api/rem-adapter';
+import { RemAdapter, type HeadingSize } from '../api/rem-adapter';
 import {
   type BridgeRequest,
   type CompanionInfo,
@@ -426,6 +426,7 @@ class BridgeRuntimeController implements BridgeRuntime {
         const result = await this.adapter.updateNote({
           remId: payload.remId as string,
           title: payload.title as string | undefined,
+          headingSize: payload.headingSize as HeadingSize | undefined,
           addAliases: payload.addAliases as string[] | undefined,
           removeAliases: payload.removeAliases as string[] | undefined,
         });

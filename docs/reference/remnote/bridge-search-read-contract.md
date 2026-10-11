@@ -236,6 +236,10 @@ The adapter-level renderer should preserve meaning over exact visual fidelity:
 
 ## Read behavior contract
 
+- Paired 0.19.x `read_note` includes the root's `headingSize` (`H1`, `H2`, `H3`, or `normal`) in every view.
+  Structured children, search items, and ancestors do not include this field; read an individual Rem ID to inspect it.
+- `update_note.headingSize` sets/clears native heading metadata through SDK `setFontSize`. Omitted values preserve
+  the setting; `normal` clears it. Heading-only updates preserve title/back text, aliases, and content-child identity.
 - Default `contentMode` for read is `"markdown"`.
 - Read `contentMode` modes: `"none" | "markdown" | "structured"`.
 - Read supports `view: "compact" | "standard" | "full"` for metadata detail and `ancestorDepth` for parent-first

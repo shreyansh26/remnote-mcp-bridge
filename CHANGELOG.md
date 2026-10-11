@@ -9,6 +9,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Local fork 0.19.0: `update_note.headingSize` sets/clears the native SDK heading size, preserving note text and
+  children. `read_note` exposes the current root size. Updated mocks, runtime dispatch, contracts, docs, and paired
+  minor versions. Image-specific tools remain retrieval-only; local upload is not implemented.
 - Local fork: personal GitHub fork metadata and sibling-checkout launch/reload instructions in the README.
 - Local fork: bounded concurrent export rendering and metadata-only retrieval with aliases, avoiding unused tag/card
   retrieval during full-KB indexing.

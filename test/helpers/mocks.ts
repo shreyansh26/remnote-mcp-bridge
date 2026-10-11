@@ -111,6 +111,7 @@ export class MockRem {
   private _propertyType: string | undefined;
   private _tagPropertyValues = new Map<string, RichTextInterface>();
   private _isTable = false;
+  private _fontSize: 'H1' | 'H2' | 'H3' | undefined;
 
   constructor(id: string, text: string) {
     this._id = id;
@@ -203,6 +204,14 @@ export class MockRem {
 
   async setIsDocument(isDocument: boolean): Promise<void> {
     this._isDocument = isDocument;
+  }
+
+  async getFontSize(): Promise<'H1' | 'H2' | 'H3' | undefined> {
+    return this._fontSize;
+  }
+
+  async setFontSize(fontSize: 'H1' | 'H2' | 'H3' | undefined): Promise<void> {
+    this._fontSize = fontSize;
   }
 
   async hasPowerup(code: string): Promise<boolean> {
