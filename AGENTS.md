@@ -32,9 +32,10 @@ discontinued; maintained CLI code lives in `remnote-mcp-server/src/remnote-cli/`
 - `search_by_tag`
 - `read_note`
 - `get_media_locator` (capability-gated RemNote-managed image token resolution)
+- `insert_image` (validated local image bytes imported into a new child; paired 0.20.x)
 - `list_children`
 - `move_note`
-- `update_note` (title/aliases and native `headingSize`; paired 0.19.x)
+- `update_note` (title/aliases and native `headingSize`)
 - `set_document_status`
 - `insert_children`
 - `replace_children`

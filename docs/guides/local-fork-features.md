@@ -1,14 +1,19 @@
 # Local fork contract
 
-This local 0.19.x fork is named **RemNote Local Bridge** and has its own manifest ID. Disable the store bridge before enabling it. See the [companion server extensions](../../../remnote-mcp-server/docs/guides/local-fork-features.md).
+This local 0.20.x fork is named **RemNote Local Bridge** and has its own manifest ID. Disable the store bridge before enabling it. See the [companion server extensions](../../../remnote-mcp-server/docs/guides/local-fork-features.md).
 
 - `update_note.headingSize` accepts `H1`, `H2`, `H3`, or `normal`, using SDK `setFontSize`. It can be changed without
   changing the title, aliases, or content children. Omitting the field preserves its current value.
 - `read_note.headingSize` returns the root's native size in every view, with ordinary text reported as `normal`.
   Read a child Rem by its exact ID to inspect its size; structured child results do not include this field.
-- Bridge/server 0.19.x versions must match. Restart the updated server and reload the updated bridge together.
-- Image-specific tools retrieve existing images. Markdown URL syntax is delegated to the SDK; no dedicated local
-  file upload API or live-verified image import is provided.
+- Bridge/server minor versions must match. Restart the updated server and reload the updated bridge together.
+- `insert_image` accepts `parentRemId`, filename, MIME, size, base64 bytes, and optional plain-text caption. The server
+  reads a local PNG/JPEG/GIF/WebP up to 10 MiB; the bridge validates the payload again, then uses the SDK HTML importer
+  on a detached image Rem, then verifies fresh readback for up to 30 seconds and attaches a separate caption/image
+  subtree in a short transaction. This handles SDK calls that save media without resolving and overwrite target text.
+  Failed staging is removed. It succeeds only for one managed `%LOCAL_FILE%` image and
+  returns its exact Rem/media IDs. Existing note content is preserved. Images can sync through RemNote; permissions
+  and write gates are unchanged. External URL, SVG/PDF, inline replacement, and back-text upload are excluded.
 
 - `create_note` adds `asFolder`, with title required and content/asDocument forbidden. The adapter uses SDK `setIsFolder(true)` inside the existing transaction. Notes created with an explicit title under a folder are automatically documents. Use their document roots to hold nested Markdown bullets.
 - Search/read/list results classify native folders as `folder` before document/concept classification. Existing card status remains independent.

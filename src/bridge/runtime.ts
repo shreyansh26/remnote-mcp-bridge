@@ -364,6 +364,21 @@ class BridgeRuntimeController implements BridgeRuntime {
         });
       }
 
+      case 'insert_image': {
+        const result = await this.adapter.insertImage({
+          parentRemId: payload.parentRemId as string,
+          fileName: payload.fileName as string,
+          data: payload.data as string,
+          mimeType: payload.mimeType as string,
+          sizeBytes: payload.sizeBytes as number,
+          caption: payload.caption as string | undefined,
+        });
+        this.stats = { ...this.stats, created: this.stats.created + 1 };
+        this.addHistoryEntry('create', [result.fileName], [result.remId]);
+        this.emit();
+        return result;
+      }
+
       case 'search_by_tag': {
         const result = await this.adapter.searchByTag({
           tagRemId: payload.tagRemId as string,

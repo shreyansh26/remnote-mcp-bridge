@@ -112,6 +112,27 @@ export interface MediaLocatorResult extends Omit<RemMediaMetadata, 'source'> {
   localToken: string;
 }
 
+export interface InsertImageParams {
+  parentRemId: string;
+  fileName: string;
+  data: string;
+  mimeType: string;
+  sizeBytes: number;
+  caption?: string;
+}
+
+export interface InsertImageResult {
+  parentRemId: string;
+  remId: string;
+  imageRemId: string;
+  mediaId: string;
+  field: MediaField;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  source: 'remnote_managed_local';
+}
+
 export interface UpdateNoteParams {
   remId: string;
   title?: string;
@@ -3336,6 +3357,97 @@ export class RemAdapter {
       source: 'remnote_managed_local',
       localToken: this.getLocalToken(match.locator),
     };
+  }
+
+  async insertImage(params: InsertImageParams): Promise<InsertImageResult> {
+    if (!this.settings.acceptWriteOperations) {
+      throw new Error('Write operations are disabled in Automation Bridge settings');
+    }
+    const parentRemId = this.requireString(params.parentRemId, 'parentRemId');
+    const fileName = this.requireString(params.fileName, 'fileName');
+    if (fileName.length > 255 || /[\\/]/.test(fileName) || fileName.includes('\u0000')) {
+      throw new Error('fileName must be a basename of at most 255 characters');
+    }
+    const caption =
+      params.caption === undefined ? fileName : this.requireString(params.caption, 'caption');
+    if (caption.length > 1000) throw new Error('caption must be at most 1000 characters');
+    const data = this.requireString(params.data, 'data');
+    const maxBytes = 10 * 1024 * 1024;
+    if (
+      data.length > 4 * Math.ceil(maxBytes / 3) ||
+      data.length % 4 !== 0 ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(data)
+    ) {
+      throw new Error('Image must be valid base64 and at most 10 MiB');
+    }
+    const bytes = atob(data);
+    if (btoa(bytes) !== data || bytes.length > maxBytes || bytes.length !== params.sizeBytes) {
+      throw new Error('Invalid base64 image size or encoding');
+    }
+    const mimeType = bytes.startsWith('\x89PNG\r\n\x1a\n')
+      ? 'image/png'
+      : bytes.startsWith('\xff\xd8\xff')
+        ? 'image/jpeg'
+        : bytes.startsWith('GIF87a') || bytes.startsWith('GIF89a')
+          ? 'image/gif'
+          : bytes.startsWith('RIFF') && bytes.slice(8, 12) === 'WEBP'
+            ? 'image/webp'
+            : undefined;
+    if (!mimeType || mimeType !== params.mimeType) {
+      throw new Error('Unsupported or mismatched image MIME; use PNG, JPEG, GIF, or WebP');
+    }
+    const parent = await this.plugin.rem.findOne(parentRemId);
+    if (!parent) throw new Error(`Parent note not found: ${parentRemId}`);
+
+    const imageNote = await this.plugin.rem.createRem();
+    if (!imageNote) throw new Error('Failed to create image note');
+    try {
+      let importError: Error | undefined;
+      // shortcut: the SDK importer can save an image without resolving; use bounded readback until SDK completion is fixed.
+      void this.plugin.richText
+        .parseAndInsertHtml(`<p><img src="data:${mimeType};base64,${data}" /></p>`, imageNote)
+        .catch((error: unknown) => {
+          importError = error instanceof Error ? error : new Error(String(error));
+        });
+      const deadline = Date.now() + 30000;
+      let managed: RemMediaMetadata | undefined;
+      while (Date.now() < deadline) {
+        if (importError) throw importError;
+        const refreshed = await this.plugin.rem.findOne(imageNote._id);
+        const images = refreshed ? this.extractRootMedia(refreshed) : [];
+        if (images.length === 1 && images[0].metadata.source === 'remnote_managed_local') {
+          this.getLocalToken(images[0].locator!);
+          managed = images[0].metadata;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (!managed)
+        throw new Error('RemNote image import did not produce one managed image within 30 seconds');
+      const media = managed;
+      const captionRemId = await this.runInTransaction(async () => {
+        const note = await this.plugin.rem.createRem();
+        if (!note) throw new Error('Failed to create image caption');
+        await note.setText([caption]);
+        await imageNote.setParent(note);
+        await note.setParent(parent);
+        return note._id;
+      });
+      return {
+        parentRemId,
+        remId: captionRemId,
+        imageRemId: imageNote._id,
+        mediaId: media.mediaId,
+        field: media.field,
+        fileName,
+        mimeType,
+        sizeBytes: bytes.length,
+        source: 'remnote_managed_local',
+      };
+    } catch (error) {
+      await imageNote.remove();
+      throw error;
+    }
   }
 
   async listChildren(params: ListChildrenParams): Promise<ListChildrenResult> {

@@ -153,6 +153,39 @@ describe('Bridge runtime', () => {
     ]);
   });
 
+  it('routes image insertion and records only image metadata in history', async () => {
+    plugin.addTestRem('parent', 'Parent');
+    runtime = await initializeBridgeRuntime(plugin as never);
+    const response = new Promise<DevToolsResultDetail>((resolve) => {
+      window.addEventListener(
+        DEVTOOLS_RESULT_EVENT,
+        (event) => resolve((event as CustomEvent<DevToolsResultDetail>).detail),
+        { once: true }
+      );
+    });
+    const data = Buffer.from('89504e470d0a1a0a00000000', 'hex').toString('base64');
+    window.dispatchEvent(
+      new CustomEvent(DEVTOOLS_EXECUTE_EVENT, {
+        detail: {
+          id: 'image-upload',
+          action: 'insert_image',
+          payload: {
+            parentRemId: 'parent',
+            fileName: 'diagram.png',
+            data,
+            mimeType: 'image/png',
+            sizeBytes: 12,
+            caption: 'Diagram',
+          },
+        },
+      })
+    );
+    expect((await response).ok).toBe(true);
+    expect(runtime.getSnapshot().stats.created).toBe(1);
+    expect(runtime.getSnapshot().history[0].titles).toEqual(['diagram.png']);
+    expect(JSON.stringify(runtime.getSnapshot())).not.toContain(data);
+  });
+
   it('handles read_table action via devtools request', async () => {
     plugin.setTestSetting(SETTING_WS_URL, 'ws://127.0.0.1:3002');
 

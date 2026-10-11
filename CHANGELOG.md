@@ -9,6 +9,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Local fork 0.20.0: `insert_image` stages validated raster image bytes through the SDK HTML importer, uses bounded
+  fresh managed-media readback for SDK completion, and attaches a separate caption/image subtree in a short
+  transaction. Failed staging is removed; existing destination content is preserved. It checks write permission,
+  base64 size/encoding, MIME, and managed-media readback before returning exact image/media IDs. Paired MCP/CLI
+  contracts, tests, and docs are aligned; no new scopes or dependencies.
 - Local fork 0.19.0: `update_note.headingSize` sets/clears the native SDK heading size, preserving note text and
   children. `read_note` exposes the current root size. Updated mocks, runtime dispatch, contracts, docs, and paired
   minor versions. Image-specific tools remain retrieval-only; local upload is not implemented.

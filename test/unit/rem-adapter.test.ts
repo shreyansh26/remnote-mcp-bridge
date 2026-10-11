@@ -42,6 +42,134 @@ describe('RemAdapter', () => {
     });
   });
 
+  describe('insertImage', () => {
+    const bytes = Buffer.from('89504e470d0a1a0a00000000', 'hex');
+    const base = {
+      parentRemId: 'parent',
+      fileName: 'diagram.png',
+      data: bytes.toString('base64'),
+      mimeType: 'image/png',
+      sizeBytes: bytes.length,
+    };
+
+    it('imports a managed image under a new caption node, preserving the existing note', async () => {
+      const created = await adapter.createNote({ title: 'Original', content: '- Existing child' });
+      const parent = (await plugin.rem.findOne(created.remIds[0]))!;
+      const existing = (await parent.getChildrenRem())[0];
+      const result = await adapter.insertImage({
+        ...base,
+        parentRemId: parent._id,
+        caption: '<b>A & B</b>',
+      });
+      expect(parent.text).toEqual(['Original']);
+      expect((await parent.getChildrenRem())[0]).toBe(existing);
+      const container = (await plugin.rem.findOne(result.remId))!;
+      expect(container.text).toEqual(['<b>A & B</b>']);
+      expect((await container.getParentRem())?._id).toBe(parent._id);
+      expect(plugin.richText.parseAndInsertHtml).toHaveBeenCalledWith(
+        `<p><img src="data:image/png;base64,${base.data}" /></p>`,
+        await plugin.rem.findOne(result.imageRemId)
+      );
+      expect(result.source).toBe('remnote_managed_local');
+      const read = await adapter.readNote({ remId: result.imageRemId, includeMediaMetadata: true });
+      expect(read.media?.[0].mediaId).toBe(result.mediaId);
+      expect(
+        await adapter.getMediaLocator({
+          remId: result.imageRemId,
+          field: result.field,
+          mediaId: result.mediaId,
+        })
+      ).toMatchObject({ localToken: 'uploaded.png' });
+    });
+
+    it('uses the filename as the default caption', async () => {
+      const parent = await adapter.createNote({ title: 'Parent' });
+      plugin.app.transaction.mockImplementationOnce(async (fn) => {
+        const value = await fn();
+        expect(typeof value).toBe('string');
+        JSON.stringify(value);
+        return value;
+      });
+      const result = await adapter.insertImage({ ...base, parentRemId: parent.remIds[0] });
+      expect((await plugin.rem.findOne(result.remId))?.text).toEqual(['diagram.png']);
+    });
+
+    it('rejects disabled writes and missing parents before creating an image note', async () => {
+      await expect(adapter.insertImage(base)).rejects.toThrow('Parent note not found');
+      adapter.updateSettings({ acceptWriteOperations: false });
+      await expect(adapter.insertImage(base)).rejects.toThrow('Write operations are disabled');
+      expect(plugin.richText.parseAndInsertHtml).not.toHaveBeenCalled();
+      expect(plugin.rem.createRem).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { fileName: '../image.png' },
+      { caption: 'x'.repeat(1001) },
+      { data: '%%%=' },
+      { data: 'abcd' },
+      { sizeBytes: 1 },
+      { mimeType: 'image/jpeg' },
+      { data: Buffer.from('<svg/>').toString('base64'), sizeBytes: 6, mimeType: 'image/svg+xml' },
+      { data: 'A'.repeat(4 * Math.ceil((10 * 1024 * 1024) / 3) + 4) },
+    ])('rejects malformed image payloads before mutation', async (invalid) => {
+      await expect(adapter.insertImage({ ...base, ...invalid })).rejects.toThrow();
+      expect(plugin.richText.parseAndInsertHtml).not.toHaveBeenCalled();
+      expect(plugin.rem.createRem).not.toHaveBeenCalled();
+    });
+
+    it('uses managed readback when the importer saves an image but never resolves', async () => {
+      const parent = await adapter.createNote({ title: 'Parent' });
+      plugin.richText.parseAndInsertHtml.mockImplementationOnce((_html, rem) => {
+        rem.text = [{ i: 'i', url: '%LOCAL_FILE%uploaded.png' } as RichTextElementInterface];
+        return new Promise(() => {});
+      });
+      const result = await adapter.insertImage({
+        ...base,
+        parentRemId: parent.remIds[0],
+        caption: 'Caption preserved',
+      });
+      expect((await plugin.rem.findOne(result.remId))?.text).toEqual(['Caption preserved']);
+      expect(result.imageRemId).not.toBe(result.remId);
+      expect((await plugin.rem.findOne(result.imageRemId))?.text).toMatchObject([{ i: 'i' }]);
+    });
+
+    it('cleans up staging after an SDK import error without changing the destination', async () => {
+      const parent = await adapter.createNote({ title: 'Parent', content: '- Existing child' });
+      const original = await adapter.readNote({
+        remId: parent.remIds[0],
+        contentMode: 'structured',
+      });
+      plugin.richText.parseAndInsertHtml.mockRejectedValueOnce(new Error('Image decoder failed'));
+      const create = plugin.rem.createRem;
+      await expect(adapter.insertImage({ ...base, parentRemId: parent.remIds[0] })).rejects.toThrow(
+        'Image decoder failed'
+      );
+      const staged = await create.mock.results.at(-1)!.value;
+      expect(await staged.getParentRem()).toBeUndefined();
+      expect(
+        await adapter.readNote({ remId: parent.remIds[0], contentMode: 'structured' })
+      ).toEqual(original);
+    });
+
+    it('times out unsupported readback and never attaches staging to the destination', async () => {
+      const parent = await adapter.createNote({ title: 'Parent' });
+      plugin.richText.parseAndInsertHtml.mockImplementationOnce(async (_html, rem) => {
+        rem.text = [{ i: 'i', url: 'data:image/png;base64,anything' } as RichTextElementInterface];
+      });
+      vi.useFakeTimers();
+      try {
+        const checked = expect(
+          adapter.insertImage({ ...base, parentRemId: parent.remIds[0] })
+        ).rejects.toThrow('within 30 seconds');
+        await vi.runAllTimersAsync();
+        await checked;
+        expect(await (await plugin.rem.findOne(parent.remIds[0]))!.getChildrenRem()).toEqual([]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   describe('createNote', () => {
     it('creates native folders, subfolders, and document notes with nested bullets', async () => {
       const folder = await adapter.createNote({ title: 'Learning', asFolder: true });

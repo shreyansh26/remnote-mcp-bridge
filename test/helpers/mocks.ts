@@ -455,6 +455,15 @@ export class MockRemNotePlugin {
   };
 
   richText = {
+    parseAndInsertHtml: vi.fn(async (_html: string, parent: MockRem): Promise<void> => {
+      parent.text = [
+        {
+          i: 'i',
+          url: '%LOCAL_FILE%uploaded.png',
+          imgId: 'uploaded-image',
+        } as RichTextInterface[number],
+      ];
+    }),
     rem: vi.fn((rem: string | MockRem) => ({
       value: vi.fn(async (): Promise<RichTextInterface> => [
         { i: 'q', _id: typeof rem === 'string' ? rem : rem._id } as RichTextInterface[number],

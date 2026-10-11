@@ -6,10 +6,16 @@ Bridge**, with a distinct ID. It adds native folders/subfolders, document roots 
 and a paged full-KB export for local semantic indexing. Existing Markdown imports support nested bullets and LaTeX math.
 The paired 0.19.0 version adds `update_note.headingSize`: `H1`, `H2`, `H3`, or `normal`. It uses the SDK's
 [native heading setting](https://plugins.remnote.com/api/classes/Rem#setfontsize), preserves text and child Rems,
-and exposes the current root `headingSize` through `read_note`. Both bridge and server must use 0.19.x.
+and exposes the current root `headingSize` through `read_note`. Both bridge and server must use the same minor version.
 
-Image operations currently retrieve existing images. Markdown writes pass image URL syntax to the SDK parser;
-this fork has no dedicated image insertion/local upload API and does not claim live-tested image import.
+Paired version **0.20.0** adds `insert_image`, reached through the server's `remnote_insert_image` tool or CLI
+`insert-image`. It imports validated PNG/JPEG/GIF/WebP bytes (up to 10 MiB) on a detached image Rem, verifies fresh
+managed-media readback, then attaches a caption/image subtree in a short transaction. The caption is separate because
+the importer overwrites its target. Failed staging is removed; existing destination text and children are preserved.
+The importer must return a managed `%LOCAL_FILE%` image before the action succeeds. Managed images may sync with
+your RemNote account. Update/restart the server and rebuild/reload the bridge together; scopes are unchanged.
+Verified on October 11, 2026 with a synthetic PNG through MCP: caption and existing content stayed intact, the
+image rendered, and retrieval returned the exact 268 source bytes. JPEG/GIF/WebP have not been exercised live.
 
 ## Local fork setup
 
